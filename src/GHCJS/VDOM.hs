@@ -21,6 +21,7 @@ module GHCJS.VDOM ( Properties, Children
                   , noProps, props
                   , noChildren, children, single, mkChildren
                   , div, p, a
+                  , js_vnode
                   , emptyDiv
                   , text
                   ) where
