@@ -118,6 +118,10 @@ module.exports = { diff:          require('./diff')
                  , VText:         require('virtual-dom/vnode/vtext')
                  , patch:         require('virtual-dom/vdom/patch')
                  , createElement: require('virtual-dom/vdom/create-element')
+                 // for event registration hook               
+                 , transformProperties: require('./transformProperties')
+                 // ultra deep clone
+                 , UltraDeepClone: require('udc/udc')
                  };
 
 // the global variable we're using in the bindings
