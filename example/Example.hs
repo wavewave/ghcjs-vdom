@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-
   virtual-dom bindings demo, rendering a large pixel grid with a bouncing red
@@ -10,18 +11,23 @@ module Main where
 
 import           Prelude hiding (div)
 
+import           Control.Applicative
 import           Control.Concurrent
 
+import           Data.Aeson
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 
 import           System.IO
-
+import           GHCJS.DOM
+import           GHCJS.DOM
 import           GHCJS.VDOM
 import           GHCJS.VDOM.QQ
 import           GHCJS.Foreign
 import           GHCJS.Foreign.QQ
+import           GHCJS.Marshal
 import           GHCJS.Types
+import           GHCJS.DOMDelegator
 
 import Control.Arrow
 
@@ -107,11 +113,64 @@ atAnimationFrame m = do
     syncCallback AlwaysRetain False (release cb >> m)
   [js_| window.requestAnimationFrame(`cb); |]
 
+foreign import javascript unsafe "globaltester = $1" js_set_tester :: JSRef a -> IO () 
+
+foreign import javascript unsafe "globaltester2 = $1" js_set_tester2 :: JSRef a -> IO ()
+
+foreign import javascript unsafe "document.body.appendChild($1)" js_set_body_child :: JSRef a -> IO ()
+ 
+testfun _ = print "testfun is called "
+
 main :: IO ()
 main = do
-  root <- [js| document.createElement('div') |]
-  [js_| document.body.appendChild(`root); |]
+  ref <- newObj
+  del <- delegator ref
+  js_set_tester2 del
+
+  fref <- asyncCallback1 AlwaysRetain testfun
+  prop <- castRef <$> toJSRef (object [ "testclick" .= String "testclick()"
+                                      , "attributes" .= object [ "style" .= String "width: 100px; height: 100px; background-color: red" ] ])
+  setProp ("ev-click" :: JSString) fref prop  -- fref prop 
+  let propwrp@(Properties prop') = transformProperties (Properties prop )
+ 
+  js_set_tester prop' 
+  --root <- [js| document.createElement('div') |]
+  --[js_| document.body.appendChild(`root); |]
   let s = mkState 167 101 10 20
-  animate root emptyDiv s
+  -- animate root emptyDiv s
+      -- n = root
+      r = div propwrp noChildren  -- emptyDiv
+  dom <- createElement r 
+  js_set_body_child dom
+  {- 
+  let s' = step s
+      r' = render s'
+      p  = diff r r'
+
+  patch n p 
+ -}
+
+   
+   
 
 
+
+
+
+
+{- 
+  x :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("testclick" :: JSString) prop'
+  print x
+
+
+  y :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("click" :: JSString) prop'
+  print y
+
+  z :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("ev-click" :: JSString) prop'
+  print z
+
+
+  -- prop' `seq` print "crazylittleguy"
+
+
+-}

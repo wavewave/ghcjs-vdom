@@ -418,6 +418,8 @@ function renderThunk(thunk, previous) {
    memoized nodes.
  */
 
+var isHook = require('virtual-dom/vnode/is-vhook');
+
 var isVirtualNode = require('virtual-dom/vnode/is-vnode');
 var isThunk       = require('virtual-dom/vnode/is-thunk');
 var isArray       = require('x-is-array');
@@ -519,17 +521,20 @@ function hasPatches(patch) {
     return false;
 }
 
+var transformProperties = require('./transformProperties');
+
 module.exports = { diff:          require('./diff')
                  , HSThunk:       HSThunk
                  , setThunkPatch: setThunkPatch
                  , forceTree:     forceTree
                  , forcePatch:    forcePatch
+                   , isHook:      isHook
                  , VNode:         require('virtual-dom/vnode/vnode')
                  , VText:         require('virtual-dom/vnode/vtext')
                  , patch:         require('virtual-dom/vdom/patch')
                  , createElement: require('virtual-dom/vdom/create-element')
                  // for event registration hook               
-                 , transformProperties: require('./transformProperties')
+                 , transformProperties: transformProperties.transformProperties
                  // ultra deep clone
                  , UltraDeepClone: require('udc/udc')
                  };
@@ -538,7 +543,7 @@ module.exports = { diff:          require('./diff')
 h$vdom = module.exports;
 h$registerExtensibleRetention(scanTree);
 
-},{"./diff":1,"./transformProperties":29,"udc/udc":9,"virtual-dom/vdom/create-element":13,"virtual-dom/vdom/patch":16,"virtual-dom/vnode/is-thunk":19,"virtual-dom/vnode/is-vnode":21,"virtual-dom/vnode/vnode":25,"virtual-dom/vnode/vpatch":26,"virtual-dom/vnode/vtext":27,"x-is-array":28}],4:[function(require,module,exports){
+},{"./diff":1,"./transformProperties":29,"udc/udc":9,"virtual-dom/vdom/create-element":13,"virtual-dom/vdom/patch":16,"virtual-dom/vnode/is-thunk":19,"virtual-dom/vnode/is-vhook":20,"virtual-dom/vnode/is-vnode":21,"virtual-dom/vnode/vnode":25,"virtual-dom/vnode/vpatch":26,"virtual-dom/vnode/vtext":27,"x-is-array":28}],4:[function(require,module,exports){
 'use strict';
 
 var OneVersionConstraint = require('individual/one-version');
@@ -1491,6 +1496,8 @@ function isArray(obj) {
    transformProperties method added for event delegation  
  */
 
+var isHook = require('virtual-dom/vnode/is-vhook');
+
 var EvStore = require('ev-store');
 
 var evHook = EvHook
@@ -1506,31 +1513,36 @@ function EvHook(value) {
 EvHook.prototype.hook = function (node, propertyName) {
     var es = EvStore(node);
     var propName = propertyName.substr(3);
-
+    console.log("EvHook.prototype.hook is called");
     es[propName] = this.value;
 };
 
 EvHook.prototype.unhook = function(node, propertyName) {
     var es = EvStore(node);
     var propName = propertyName.substr(3);
-
+    console.log("EvHook.prototype.unhook is called");
     es[propName] = undefined;
 };
 
-function transfromProperties(props) {
+function transformProperties(props) {
     for(var propName in props) {
         if (props.hasOwnProperty(propName)) {
             var value = props[propName];
 
             if (isHook(value)) {
+                console.log("transformProperties, isHook: " + propName);
                 continue;
             }
 
             if (propName.substr(0, 3) === 'ev-') {
+                console.log("transformProperties, ev-: " + propName);
+
                 // add ev-foo support
                 props[propName] = evHook(value);
             }
         }
     }
 }
-},{"ev-store":4}]},{},[3]);
+
+module.exports = { transformProperties: transformProperties };
+},{"ev-store":4,"virtual-dom/vnode/is-vhook":20}]},{},[3]);
