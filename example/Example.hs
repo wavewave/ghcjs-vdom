@@ -70,8 +70,8 @@ step (State x y dx dy w h p) =
 cls :: JSString -> Properties
 cls name = [pr| className: name |]
 
-render :: State -> VNode
-render s = div (cls "state") [ch|pixelDiv,numDiv|]
+render :: Properties -> State -> VNode
+render prop s = div prop [ch|pixelDiv,numDiv|]
     where
       xd       = textDiv (y s)
       yd       = textDiv (x s)
@@ -96,13 +96,13 @@ renderPixelM = memo renderPixel
 renderPixel :: IntMap JSString -> Int -> VNode
 renderPixel r c = div (cls (r IM.! c)) noChildren
 
-animate :: DOMNode -> VNode -> State -> IO ()
-animate n r s =
+animate :: Properties -> DOMNode -> VNode -> State -> IO ()
+animate prop n r s =
   let s' = step s
-      r' = render s'
+      r' = render prop s'
       p  = diff r r'
---  in  s' `seq` redraw n p >> threadDelay 20000 >> animate n r' s' -- for async calculation, sync repaint
-  in atAnimationFrame (patch n p >> animate n r' s') -- sync all
+  -- for async calculation, sync repaint
+  in atAnimationFrame (patch n p >> animate prop n r' s') -- sync all
 
 redraw :: DOMNode -> Patch -> IO ()
 redraw node p = p `seq` atAnimationFrame (patch node p)
@@ -113,64 +113,24 @@ atAnimationFrame m = do
     syncCallback AlwaysRetain False (release cb >> m)
   [js_| window.requestAnimationFrame(`cb); |]
 
-foreign import javascript unsafe "globaltester = $1" js_set_tester :: JSRef a -> IO () 
-
-foreign import javascript unsafe "globaltester2 = $1" js_set_tester2 :: JSRef a -> IO ()
-
 foreign import javascript unsafe "document.body.appendChild($1)" js_set_body_child :: JSRef a -> IO ()
- 
-testfun _ = print "testfun is called "
+
+foreign import javascript unsafe "alert('hi')" js_say_hi :: IO ()
+
+testfun _ = js_say_hi
 
 main :: IO ()
 main = do
   ref <- newObj
   del <- delegator ref
-  js_set_tester2 del
 
   fref <- asyncCallback1 AlwaysRetain testfun
-  prop <- castRef <$> toJSRef (object [ "testclick" .= String "testclick()"
-                                      , "attributes" .= object [ "style" .= String "width: 100px; height: 100px; background-color: red" ] ])
+  prop <- newObj 
   setProp ("ev-click" :: JSString) fref prop  -- fref prop 
   let propwrp@(Properties prop') = transformProperties (Properties prop )
  
-  js_set_tester prop' 
-  --root <- [js| document.createElement('div') |]
-  --[js_| document.body.appendChild(`root); |]
+  root <- [js| document.createElement('div') |]
+  [js_| document.body.appendChild(`root); |]
   let s = mkState 167 101 10 20
-  -- animate root emptyDiv s
-      -- n = root
-      r = div propwrp noChildren  -- emptyDiv
-  dom <- createElement r 
-  js_set_body_child dom
-  {- 
-  let s' = step s
-      r' = render s'
-      p  = diff r r'
-
-  patch n p 
- -}
-
-   
-   
-
-
-
-
-
-
-{- 
-  x :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("testclick" :: JSString) prop'
-  print x
-
-
-  y :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("click" :: JSString) prop'
-  print y
-
-  z :: Maybe String <- fromJSRef =<< GHCJS.Foreign.getProp ("ev-click" :: JSString) prop'
-  print z
-
-
-  -- prop' `seq` print "crazylittleguy"
-
-
--}
+  animate propwrp root emptyDiv s
+  

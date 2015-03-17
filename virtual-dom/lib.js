@@ -1513,14 +1513,12 @@ function EvHook(value) {
 EvHook.prototype.hook = function (node, propertyName) {
     var es = EvStore(node);
     var propName = propertyName.substr(3);
-    console.log("EvHook.prototype.hook is called");
     es[propName] = this.value;
 };
 
 EvHook.prototype.unhook = function(node, propertyName) {
     var es = EvStore(node);
     var propName = propertyName.substr(3);
-    console.log("EvHook.prototype.unhook is called");
     es[propName] = undefined;
 };
 
@@ -1530,13 +1528,10 @@ function transformProperties(props) {
             var value = props[propName];
 
             if (isHook(value)) {
-                console.log("transformProperties, isHook: " + propName);
                 continue;
             }
 
             if (propName.substr(0, 3) === 'ev-') {
-                console.log("transformProperties, ev-: " + propName);
-
                 // add ev-foo support
                 props[propName] = evHook(value);
             }
