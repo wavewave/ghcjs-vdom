@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-
   virtual-dom bindings demo, rendering a large pixel grid with a bouncing red
@@ -10,18 +11,23 @@ module Main where
 
 import           Prelude hiding (div)
 
+import           Control.Applicative
 import           Control.Concurrent
 
+import           Data.Aeson
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 
 import           System.IO
-
+import           GHCJS.DOM
+import           GHCJS.DOM
 import           GHCJS.VDOM
 import           GHCJS.VDOM.QQ
 import           GHCJS.Foreign
 import           GHCJS.Foreign.QQ
+import           GHCJS.Marshal
 import           GHCJS.Types
+import           GHCJS.DOMDelegator
 
 import Control.Arrow
 
@@ -64,8 +70,8 @@ step (State x y dx dy w h p) =
 cls :: JSString -> Properties
 cls name = [pr| className: name |]
 
-render :: State -> VNode
-render s = div (cls "state") [ch|pixelDiv,numDiv|]
+render :: Properties -> State -> VNode
+render prop s = div prop [ch|pixelDiv,numDiv|]
     where
       xd       = textDiv (y s)
       yd       = textDiv (x s)
@@ -90,13 +96,13 @@ renderPixelM = memo renderPixel
 renderPixel :: IntMap JSString -> Int -> VNode
 renderPixel r c = div (cls (r IM.! c)) noChildren
 
-animate :: DOMNode -> VNode -> State -> IO ()
-animate n r s =
+animate :: Properties -> DOMNode -> VNode -> State -> IO ()
+animate prop n r s =
   let s' = step s
-      r' = render s'
+      r' = render prop s'
       p  = diff r r'
---  in  s' `seq` redraw n p >> threadDelay 20000 >> animate n r' s' -- for async calculation, sync repaint
-  in atAnimationFrame (patch n p >> animate n r' s') -- sync all
+  -- for async calculation, sync repaint
+  in atAnimationFrame (patch n p >> animate prop n r' s') -- sync all
 
 redraw :: DOMNode -> Patch -> IO ()
 redraw node p = p `seq` atAnimationFrame (patch node p)
@@ -107,11 +113,24 @@ atAnimationFrame m = do
     syncCallback AlwaysRetain False (release cb >> m)
   [js_| window.requestAnimationFrame(`cb); |]
 
+foreign import javascript unsafe "document.body.appendChild($1)" js_set_body_child :: JSRef a -> IO ()
+
+foreign import javascript unsafe "alert('hi')" js_say_hi :: IO ()
+
+testfun _ = js_say_hi
+
 main :: IO ()
 main = do
+  ref <- newObj
+  del <- delegator ref
+
+  fref <- asyncCallback1 AlwaysRetain testfun
+  prop <- newObj 
+  setProp ("ev-click" :: JSString) fref prop  -- fref prop 
+  let propwrp@(Properties prop') = transformProperties (Properties prop )
+ 
   root <- [js| document.createElement('div') |]
   [js_| document.body.appendChild(`root); |]
   let s = mkState 167 101 10 20
-  animate root emptyDiv s
-
-
+  animate propwrp root emptyDiv s
+  

@@ -24,6 +24,8 @@ module GHCJS.VDOM ( Properties(..), Children
                   , js_vnode
                   , emptyDiv
                   , text
+                  , transformProperties
+                  , createElement
                   ) where
 
 import Prelude hiding (div)
@@ -205,3 +207,22 @@ unsafeExport x =
 
 foreign import javascript unsafe "$r = $1;" js_unsafeExport :: Double -> JSRef a
 
+
+----- transform properties and register events to ev-store
+ 
+foreign import javascript unsafe "h$vdom.transformProperties($1)" js_transform_properties :: JSRef a  -> IO ()
+
+foreign import javascript unsafe "h$vdom.UltraDeepClone($1)" js_ultra_deep_clone :: JSRef a -> IO (JSRef a)
+
+transformProperties :: Properties -> Properties
+transformProperties (Properties p) = unsafePerformIO $ do
+    p' <- js_ultra_deep_clone p
+    -- let p' = p
+    js_transform_properties p'
+    return (Properties p')
+
+-- foreign import javascript unsafe "h$vdom.createElement($1,$2)" 
+--   js_create_element :: JSRef a -> JSRef b -> IO (JSRef c)
+
+createElement :: VNode -> IO DOMNode
+createElement (VNode vnode) = [js| h$vdom.createElement(`vnode,null) |]

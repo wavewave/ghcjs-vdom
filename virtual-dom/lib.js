@@ -387,7 +387,7 @@ function appendPatch(apply, patch) {
     }
 }
 
-},{"./handle-thunk":2,"is-object":5,"virtual-dom/vnode/is-thunk":15,"virtual-dom/vnode/is-vnode":17,"virtual-dom/vnode/is-vtext":18,"virtual-dom/vnode/is-widget":19,"virtual-dom/vnode/vpatch":22,"x-is-array":24}],2:[function(require,module,exports){
+},{"./handle-thunk":2,"is-object":8,"virtual-dom/vnode/is-thunk":19,"virtual-dom/vnode/is-vnode":21,"virtual-dom/vnode/is-vtext":22,"virtual-dom/vnode/is-widget":23,"virtual-dom/vnode/vpatch":26,"x-is-array":28}],2:[function(require,module,exports){
 var isVNode = require("virtual-dom/vnode/is-vnode")
 var isVText = require("virtual-dom/vnode/is-vtext")
 var isWidget = require("virtual-dom/vnode/is-widget")
@@ -407,7 +407,7 @@ function renderThunk(thunk, previous) {
     return thunk.vnode ? null : thunk;
 }
 
-},{"virtual-dom/vnode/is-thunk":15,"virtual-dom/vnode/is-vnode":17,"virtual-dom/vnode/is-vtext":18,"virtual-dom/vnode/is-widget":19}],3:[function(require,module,exports){
+},{"virtual-dom/vnode/is-thunk":19,"virtual-dom/vnode/is-vnode":21,"virtual-dom/vnode/is-vtext":22,"virtual-dom/vnode/is-widget":23}],3:[function(require,module,exports){
 /*
   to generate lib.js, install virtual-dom and process file:
 
@@ -417,6 +417,8 @@ function renderThunk(thunk, previous) {
    allow diff to run in an asynchronous thread in the presence of
    memoized nodes.
  */
+
+var isHook = require('virtual-dom/vnode/is-vhook');
 
 var isVirtualNode = require('virtual-dom/vnode/is-vnode');
 var isThunk       = require('virtual-dom/vnode/is-thunk');
@@ -519,31 +521,262 @@ function hasPatches(patch) {
     return false;
 }
 
+var transformProperties = require('./transformProperties');
+
 module.exports = { diff:          require('./diff')
                  , HSThunk:       HSThunk
                  , setThunkPatch: setThunkPatch
                  , forceTree:     forceTree
                  , forcePatch:    forcePatch
+                   , isHook:      isHook
                  , VNode:         require('virtual-dom/vnode/vnode')
                  , VText:         require('virtual-dom/vnode/vtext')
                  , patch:         require('virtual-dom/vdom/patch')
                  , createElement: require('virtual-dom/vdom/create-element')
+                 // for event registration hook               
+                 , transformProperties: transformProperties.transformProperties
+                 // ultra deep clone
+                 , UltraDeepClone: require('udc/udc')
                  };
 
 // the global variable we're using in the bindings
 h$vdom = module.exports;
 h$registerExtensibleRetention(scanTree);
 
-},{"./diff":1,"virtual-dom/vdom/create-element":9,"virtual-dom/vdom/patch":12,"virtual-dom/vnode/is-thunk":15,"virtual-dom/vnode/is-vnode":17,"virtual-dom/vnode/vnode":21,"virtual-dom/vnode/vpatch":22,"virtual-dom/vnode/vtext":23,"x-is-array":24}],4:[function(require,module,exports){
+},{"./diff":1,"./transformProperties":29,"udc/udc":9,"virtual-dom/vdom/create-element":13,"virtual-dom/vdom/patch":16,"virtual-dom/vnode/is-thunk":19,"virtual-dom/vnode/is-vhook":20,"virtual-dom/vnode/is-vnode":21,"virtual-dom/vnode/vnode":25,"virtual-dom/vnode/vpatch":26,"virtual-dom/vnode/vtext":27,"x-is-array":28}],4:[function(require,module,exports){
+'use strict';
 
-},{}],5:[function(require,module,exports){
+var OneVersionConstraint = require('individual/one-version');
+
+var MY_VERSION = '7';
+OneVersionConstraint('ev-store', MY_VERSION);
+
+var hashKey = '__EV_STORE_KEY@' + MY_VERSION;
+
+module.exports = EvStore;
+
+function EvStore(elem) {
+    var hash = elem[hashKey];
+
+    if (!hash) {
+        hash = elem[hashKey] = {};
+    }
+
+    return hash;
+}
+
+},{"individual/one-version":6}],5:[function(require,module,exports){
+(function (global){
+'use strict';
+
+/*global window, global*/
+
+var root = typeof window !== 'undefined' ?
+    window : typeof global !== 'undefined' ?
+    global : {};
+
+module.exports = Individual;
+
+function Individual(key, value) {
+    if (key in root) {
+        return root[key];
+    }
+
+    root[key] = value;
+
+    return value;
+}
+
+}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],6:[function(require,module,exports){
+'use strict';
+
+var Individual = require('./index.js');
+
+module.exports = OneVersion;
+
+function OneVersion(moduleName, version, defaultValue) {
+    var key = '__INDIVIDUAL_ONE_VERSION_' + moduleName;
+    var enforceKey = key + '_ENFORCE_SINGLETON';
+
+    var versionValue = Individual(enforceKey, version);
+
+    if (versionValue !== version) {
+        throw new Error('Can only have one copy of ' +
+            moduleName + '.\n' +
+            'You already have version ' + versionValue +
+            ' installed.\n' +
+            'This means you cannot install version ' + version);
+    }
+
+    return Individual(key, defaultValue);
+}
+
+},{"./index.js":5}],7:[function(require,module,exports){
+
+},{}],8:[function(require,module,exports){
 module.exports = isObject
 
 function isObject(x) {
     return typeof x === "object" && x !== null
 }
 
-},{}],6:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
+(function (root, factory) {
+		"use strict";
+
+		if (typeof exports === 'object') {
+			module.exports = factory();
+		} else if (typeof define === 'function' && define.amd) {
+			define(factory);
+		} else {
+			root.UltraDeepClone = factory();
+		}
+	}(this, function () {
+
+		var functionPropertyFilter = [
+			"caller",
+			"arguments"
+		];
+
+		// Node.js has a lot of silly enumeral properties on its "TypedArray" implementation
+		var typedArrayPropertyFilter = [
+			'BYTES_PER_ELEMENT',
+			'get',
+			'set',
+			'slice',
+			'subarray',
+			'buffer',
+			'length',
+			'byteOffset',
+			'byteLength'
+		];
+
+		var primitiveCloner  = makeCloner(clonePrimitive);
+		var typedArrayCloner = makeRecursiveCloner(makeCloner(cloneTypedArray), typedArrayPropertyFilter);
+
+		function typeString (type) {
+			return '[object ' + type + ']';
+		}
+
+		var cloneFunctions = {};
+
+		cloneFunctions[typeString('RegExp')] = makeCloner(cloneRegExp);
+		cloneFunctions[typeString('Date')] = makeCloner(cloneDate);
+		cloneFunctions[typeString('Function')] = makeRecursiveCloner(makeCloner(cloneFunction), functionPropertyFilter);
+		cloneFunctions[typeString('Object')] = makeRecursiveCloner(makeCloner(cloneObject));
+		cloneFunctions[typeString('Array')] = makeRecursiveCloner(makeCloner(cloneArray));
+
+		['Null', 'Undefined', 'Number', 'String', 'Boolean']
+			.map(typeString)
+			.forEach(function (type) {
+				cloneFunctions[type] = primitiveCloner;
+			});
+
+		['Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array',
+		 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array']
+			.map(typeString)
+			.forEach(function (type) {
+				cloneFunctions[type] = typedArrayCloner;
+			});
+
+		function makeArguments (numberOfArgs) {
+			var letters = [];
+			for ( var i = 1; i <= numberOfArgs; i++ ) letters.push("arg" + i);
+			return letters;
+		}
+
+		function wrapFunctionWithArity (callback) {
+			var argList = makeArguments(callback.length);
+			var functionCode = 'return false || function ';
+			functionCode += callback.name + '(';
+			functionCode += argList.join(', ') + ') {\n';
+			functionCode += 'return fn.apply(this, arguments);\n';
+			functionCode += '};'
+
+			return Function("fn", functionCode)(callback);
+		}
+
+		function makeCloner (cloneThing) {
+			return function(thing, thingStack, copyStack) {
+				thingStack.push(thing);
+				var copy = cloneThing(thing);
+				copyStack.push(copy);
+				return copy;
+			};
+		}
+
+		function clonePrimitive (primitive) {
+			return primitive;
+		}
+
+		function cloneRegExp (regexp) {
+			return new RegExp(regexp);
+		}
+
+		function cloneDate (date) {
+			return new Date(date.getTime());
+		}
+
+		// We can't really clone functions but we can wrap them in a new function that will
+		// recieve clones of any properties the original function may have had
+		function cloneFunction (fn) {
+			return wrapFunctionWithArity(fn);
+		}
+
+		// This will not properly clone `constructed` objects because
+		// it is impossible to know with what arguments the constructor
+		// was originally invoked.
+		function cloneObject (object) {
+			return Object.create(Object.getPrototypeOf(object));
+		}
+
+		function cloneArray (array) {
+			return [];
+		}
+
+		function cloneTypedArray (typedArray) {
+			var len = typedArray.length;
+			return new typedArray.constructor(len);
+		}
+
+		function makeRecursiveCloner (cloneThing, propertyFilter) {
+			return function(thing, thingStack, copyStack) {
+				var clone = this;
+
+				return Object.getOwnPropertyNames(thing)
+					.filter(function(prop){
+						return !propertyFilter || propertyFilter.indexOf(prop) === -1;
+					})
+					.reduce(function(copy, prop) {
+						var thingOffset = thingStack.indexOf(thing[prop]);
+
+						if (thingOffset === -1) {
+							copy[prop] = clone(thing[prop]);
+						} else {
+							copy[prop] = copyStack[thingOffset];
+						}
+
+						return copy;
+					}, cloneThing(thing, thingStack, copyStack));
+			};
+		}
+
+		return function _ultraDeepClone (source) {
+
+			var thingStack = [];
+			var copyStack = [];
+
+			function clone (thing) {
+				var typeOfThing = Object.prototype.toString.call(thing);
+				return cloneFunctions[typeOfThing].call(clone, thing, thingStack, copyStack);
+			};
+
+			return clone(source);
+		};
+}));
+
+},{}],10:[function(require,module,exports){
 (function (global){
 var topLevel = typeof global !== 'undefined' ? global :
     typeof window !== 'undefined' ? window : {}
@@ -562,14 +795,14 @@ if (typeof document !== 'undefined') {
 }
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"min-document":4}],7:[function(require,module,exports){
+},{"min-document":7}],11:[function(require,module,exports){
 "use strict";
 
 module.exports = function isObject(x) {
 	return typeof x === "object" && x !== null;
 };
 
-},{}],8:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 var isObject = require("is-object")
 var isHook = require("../vnode/is-vhook.js")
 
@@ -668,7 +901,7 @@ function getPrototype(value) {
     }
 }
 
-},{"../vnode/is-vhook.js":16,"is-object":7}],9:[function(require,module,exports){
+},{"../vnode/is-vhook.js":20,"is-object":11}],13:[function(require,module,exports){
 var document = require("global/document")
 
 var applyProperties = require("./apply-properties")
@@ -716,7 +949,7 @@ function createElement(vnode, opts) {
     return node
 }
 
-},{"../vnode/handle-thunk.js":14,"../vnode/is-vnode.js":17,"../vnode/is-vtext.js":18,"../vnode/is-widget.js":19,"./apply-properties":8,"global/document":6}],10:[function(require,module,exports){
+},{"../vnode/handle-thunk.js":18,"../vnode/is-vnode.js":21,"../vnode/is-vtext.js":22,"../vnode/is-widget.js":23,"./apply-properties":12,"global/document":10}],14:[function(require,module,exports){
 // Maps a virtual DOM tree onto a real DOM tree in an efficient manner.
 // We don't want to read all of the DOM nodes in the tree so we use
 // the in-order tree indexing to eliminate recursion down certain branches.
@@ -803,7 +1036,7 @@ function ascending(a, b) {
     return a > b ? 1 : -1
 }
 
-},{}],11:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 var applyProperties = require("./apply-properties")
 
 var isWidget = require("../vnode/is-widget.js")
@@ -957,7 +1190,7 @@ function replaceRoot(oldRoot, newRoot) {
     return newRoot;
 }
 
-},{"../vnode/is-widget.js":19,"../vnode/vpatch.js":22,"./apply-properties":8,"./create-element":9,"./update-widget":13}],12:[function(require,module,exports){
+},{"../vnode/is-widget.js":23,"../vnode/vpatch.js":26,"./apply-properties":12,"./create-element":13,"./update-widget":17}],16:[function(require,module,exports){
 var document = require("global/document")
 var isArray = require("x-is-array")
 
@@ -1035,7 +1268,7 @@ function patchIndices(patches) {
     return indices
 }
 
-},{"./dom-index":10,"./patch-op":11,"global/document":6,"x-is-array":24}],13:[function(require,module,exports){
+},{"./dom-index":14,"./patch-op":15,"global/document":10,"x-is-array":28}],17:[function(require,module,exports){
 var isWidget = require("../vnode/is-widget.js")
 
 module.exports = updateWidget
@@ -1052,7 +1285,7 @@ function updateWidget(a, b) {
     return false
 }
 
-},{"../vnode/is-widget.js":19}],14:[function(require,module,exports){
+},{"../vnode/is-widget.js":23}],18:[function(require,module,exports){
 var isVNode = require("./is-vnode")
 var isVText = require("./is-vtext")
 var isWidget = require("./is-widget")
@@ -1094,14 +1327,14 @@ function renderThunk(thunk, previous) {
     return renderedThunk
 }
 
-},{"./is-thunk":15,"./is-vnode":17,"./is-vtext":18,"./is-widget":19}],15:[function(require,module,exports){
+},{"./is-thunk":19,"./is-vnode":21,"./is-vtext":22,"./is-widget":23}],19:[function(require,module,exports){
 module.exports = isThunk
 
 function isThunk(t) {
     return t && t.type === "Thunk"
 }
 
-},{}],16:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = isHook
 
 function isHook(hook) {
@@ -1110,7 +1343,7 @@ function isHook(hook) {
        typeof hook.unhook === "function" && !hook.hasOwnProperty("unhook"))
 }
 
-},{}],17:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = isVirtualNode
@@ -1119,7 +1352,7 @@ function isVirtualNode(x) {
     return x && x.type === "VirtualNode" && x.version === version
 }
 
-},{"./version":20}],18:[function(require,module,exports){
+},{"./version":24}],22:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = isVirtualText
@@ -1128,17 +1361,17 @@ function isVirtualText(x) {
     return x && x.type === "VirtualText" && x.version === version
 }
 
-},{"./version":20}],19:[function(require,module,exports){
+},{"./version":24}],23:[function(require,module,exports){
 module.exports = isWidget
 
 function isWidget(w) {
     return w && w.type === "Widget"
 }
 
-},{}],20:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = "2"
 
-},{}],21:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 var version = require("./version")
 var isVNode = require("./is-vnode")
 var isWidget = require("./is-widget")
@@ -1212,7 +1445,7 @@ function VirtualNode(tagName, properties, children, key, namespace) {
 VirtualNode.prototype.version = version
 VirtualNode.prototype.type = "VirtualNode"
 
-},{"./is-thunk":15,"./is-vhook":16,"./is-vnode":17,"./is-widget":19,"./version":20}],22:[function(require,module,exports){
+},{"./is-thunk":19,"./is-vhook":20,"./is-vnode":21,"./is-widget":23,"./version":24}],26:[function(require,module,exports){
 var version = require("./version")
 
 VirtualPatch.NONE = 0
@@ -1236,7 +1469,7 @@ function VirtualPatch(type, vNode, patch) {
 VirtualPatch.prototype.version = version
 VirtualPatch.prototype.type = "VirtualPatch"
 
-},{"./version":20}],23:[function(require,module,exports){
+},{"./version":24}],27:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = VirtualText
@@ -1248,7 +1481,7 @@ function VirtualText(text) {
 VirtualText.prototype.version = version
 VirtualText.prototype.type = "VirtualText"
 
-},{"./version":20}],24:[function(require,module,exports){
+},{"./version":24}],28:[function(require,module,exports){
 var nativeIsArray = Array.isArray
 var toString = Object.prototype.toString
 
@@ -1258,4 +1491,53 @@ function isArray(obj) {
     return toString.call(obj) === "[object Array]"
 }
 
-},{}]},{},[3]);
+},{}],29:[function(require,module,exports){
+/* 
+   transformProperties method added for event delegation  
+ */
+
+var isHook = require('virtual-dom/vnode/is-vhook');
+
+var EvStore = require('ev-store');
+
+var evHook = EvHook
+
+function EvHook(value) {
+    if (!(this instanceof EvHook)) {
+        return new EvHook(value);
+    }
+
+    this.value = value;
+}
+
+EvHook.prototype.hook = function (node, propertyName) {
+    var es = EvStore(node);
+    var propName = propertyName.substr(3);
+    es[propName] = this.value;
+};
+
+EvHook.prototype.unhook = function(node, propertyName) {
+    var es = EvStore(node);
+    var propName = propertyName.substr(3);
+    es[propName] = undefined;
+};
+
+function transformProperties(props) {
+    for(var propName in props) {
+        if (props.hasOwnProperty(propName)) {
+            var value = props[propName];
+
+            if (isHook(value)) {
+                continue;
+            }
+
+            if (propName.substr(0, 3) === 'ev-') {
+                // add ev-foo support
+                props[propName] = evHook(value);
+            }
+        }
+    }
+}
+
+module.exports = { transformProperties: transformProperties };
+},{"ev-store":4,"virtual-dom/vnode/is-vhook":20}]},{},[3]);

@@ -8,6 +8,8 @@
    memoized nodes.
  */
 
+var isHook = require('virtual-dom/vnode/is-vhook');
+
 var isVirtualNode = require('virtual-dom/vnode/is-vnode');
 var isThunk       = require('virtual-dom/vnode/is-thunk');
 var isArray       = require('x-is-array');
@@ -109,15 +111,22 @@ function hasPatches(patch) {
     return false;
 }
 
+var transformProperties = require('./transformProperties');
+
 module.exports = { diff:          require('./diff')
                  , HSThunk:       HSThunk
                  , setThunkPatch: setThunkPatch
                  , forceTree:     forceTree
                  , forcePatch:    forcePatch
+                   , isHook:      isHook
                  , VNode:         require('virtual-dom/vnode/vnode')
                  , VText:         require('virtual-dom/vnode/vtext')
                  , patch:         require('virtual-dom/vdom/patch')
                  , createElement: require('virtual-dom/vdom/create-element')
+                 // for event registration hook               
+                 , transformProperties: transformProperties.transformProperties
+                 // ultra deep clone
+                 , UltraDeepClone: require('udc/udc')
                  };
 
 // the global variable we're using in the bindings
