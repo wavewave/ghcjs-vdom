@@ -25,6 +25,7 @@ module GHCJS.VDOM ( Properties(..), Children
                   , emptyDiv
                   , text
                   , transformProperties
+                  , transformPropertiesIO
                   , createElement
                   ) where
 
@@ -220,6 +221,12 @@ transformProperties (Properties p) = unsafePerformIO $ do
     -- let p' = p
     js_transform_properties p'
     return (Properties p')
+
+transformPropertiesIO :: Properties -> IO ()
+transformPropertiesIO (Properties p) = do
+    js_transform_properties p
+    return () -- (Properties p)
+
 
 -- foreign import javascript unsafe "h$vdom.createElement($1,$2)" 
 --   js_create_element :: JSRef a -> JSRef b -> IO (JSRef c)
