@@ -126,7 +126,7 @@ module.exports = { diff:          require('./diff')
                  // for event registration hook               
                  , transformProperties: transformProperties.transformProperties
                  // ultra deep clone
-                 , UltraDeepClone: require('udc/udc')
+                 // , UltraDeepClone: require('udc/udc')
                  };
 
 // the global variable we're using in the bindings
